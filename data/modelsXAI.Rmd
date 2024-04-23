@@ -1,58 +1,74 @@
 ---
-title: "The Hitchhiker’s Guide to Responsible Machine Learning"
-subtitle: "With R, randomForest, mlr3 and DALEX"
-author: "Przemyslaw Biecek and Anna Kozak"
+title: "La Guía del Viajero al Aprendizaje Automático Responsable"
+subtitle: "Con R, randomforest, mlr3 and DALEX"
+author: "Przemyslaw Biecek & Anna Kozak"
 date: "15.01.2022"
 output: 
   html_document:
     toc: true
     toc_depth: 2
     toc_float: true
+editor_options: 
+  markdown: 
+    wrap: sentence
 ---
 
 ```{r setup, include=FALSE, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# *Chapter 1: Predictive modeling*
+# *Capítulo 1: modelado predictivo*
 
-Get prepared
+Preparate
 
-```
+```         
 install.packages(c("tableone", "DALEX", "ggplot2", "partykit", "mlr3", "mlr3learners", "ranger", "mlr3tuning", "paradox"))
 ```
 
-# Part 1: Introduction to predictive modeling + EDA
+# Parte 1: Introducción al modelado predictivo + AED
 
-The purpose of this tutorial is to present a life cycle of a single predictive model for a problem related to binary classification (but I deliberately don't mention logistic regression). Along the way, we will tackle various interesting topics such as model training, model verification, hyperparameter tuning, and exploratory model analysis. 
+El propósito de este tutorial es presentar un ciclo de vida de un modelo predictivo único para un problema relacionado con la clasificación binaria (pero deliberadamente no menciono la regresión logística).
+A lo largo del camino, abordaremos varios temas interesantes, como el entrenamiento de modelos, la verificación de modelos, el ajuste de hiperparámetros y el análisis exploratorio de modelos.
 
-The examples presented here are inspired by three textbooks books: [The Elements of Statistical Learning](https://www.statlearning.com/) with mathematical foundations, [The mlr3 book](https://mlr3book.mlr-org.com/), presenting software package `mlr3` designed for advanced model programming, [Explanatory Model Analysis](http://ema.drwhy.ai/) overviews methods  for model exploration and visualisation. 
-Note that responsible modelling requires knowledge that cannot be learned in two days.  
-So, after this introduction, I highly recommend checking out these books.
+Los ejemplos presentados aquí están inspirados en tres libros de texto: [The Elements of Statistical Learning](https://www.statlearning.com/) with mathematical foundations, [The mlr3 book](https://mlr3book.mlr-org.com/), presenting software package `mlr3` designed for advanced model programming, [Explanatory Model Analysis](http://ema.drwhy.ai/) describe métodos para la exploración y visualización de modelos.
+Tenga en cuenta que el modelaje responsable requiere conocimientos que no se pueden aprender en dos días.
+Entonces, después de esta introducción, recomiendo encarecidamente que consultes estos libros.
 
-*Why should I care?*
+*¿Por qué debería importarme?*
 
-Predictive models have been used throughout entire human history. Priests in Egypt were predicting when the flood of the Nile or a solar eclipse would come. Developments in statistics, increasing the availability of datasets, and increasing computing power allow predictive models to be built faster and faster.
+Los modelos predictivos se han utilizado a lo largo de toda la historia de la humanidad.
+Los sacerdotes en Egipto predecían cuándo se produciría la inundación del Nilo o un eclipse solar.
+Los avances en las estadísticas, el aumento de la disponibilidad de conjuntos de datos y el aumento de la potencia informática permiten construir modelos predictivos cada vez más rápido.
 
-Today, predictive models are used virtually everywhere. Planning the supply chain for a large corporation, recommending lunch or a movie for the evening, or predicting traffic jams in a city. Newspapers are full of interesting applications.
+Hoy en día, los modelos predictivos se utilizan prácticamente en todas partes.
+Planificar la cadena de suministro para una gran corporación, recomendar un almuerzo o una película para la noche o predecir atascos en una ciudad.
+Los periódicos están llenos de aplicaciones interesantes.
 
-But how are such predictive models developed? In the following sections, we will go through a life cycle of a  predictive model. From the concept phase, through design, training, checking, to the deployment. 
-For this example, we will use the data set on the risk of death for Covid-19 patients after SARS-COV-2 infection.  But keep in mind that the data presented here is artificial. It is generated to mirror relations in real data, but do not contain real observations for real patients.
-Still, it should be an interesting use-case to discuss a typical lifetime of a predictive model.
+Pero ¿cómo se desarrollan esos modelos predictivos?
+En las siguientes secciones, repasaremos el ciclo de vida de un modelo predictivo.
+Desde la fase de concepto, pasando por el diseño, la formación, la comprobación, hasta la implementación.
+Para este ejemplo, utilizaremos el conjunto de datos sobre el riesgo de muerte de pacientes con Covid-19 después de la infección por SARS-COV-2.
+Pero tenga en cuenta que los datos presentados aquí son artificiales.
+Se genera para reflejar las relaciones en datos reales, pero no contiene observaciones reales para pacientes reales.
+Aun así, debería ser un caso de uso interesante analizar la vida útil típica de un modelo predictivo.
 
-*Tools*
+*Herramientas*
 
-These materials are based on two R packages: `mlr3`  for model training and `DALEX` for model visualization and explanation. But there are more packages with similar functionalities, for modelling other popular choices are `mlr`, `tidymodels` and `caret` while for the model explanation you will find lots of interesting features in `flashlight` and `iml`.
+Estos materiales se basan en dos paquetes de R: `mlr3` para entrenamiento de modelos y `DALEX` para visualización y explicación de modelos.
+Pero hay más paquetes con funcionalidad similares, para modelar otras opciones populares son: `mlr`, `tidymodels` y `caret` mientras que para la explicación del modelo encontrarán muchas características interesantes en `flashlight` e `iml`.
 
+*El Problema*
 
-*The problem*
+El ciclo de vida de un modelo predictivo comienza con un problema bien definido.
+En este ejemplo, buscamos un modelo que evalúe el riesgo de muerte después de un diagnóstico de covid.
+No queremos adivinar quién sobrevivirá y quién no.
+Queremos construir una puntuación que nos permita clasificar a los pacientes por riesgo de muerte\footnote{Por esta razón, en las siguientes secciones usaremos la medida AUC para evaluar modelos}.
 
-The life cycle of a predictive model begins with a well-defined problem. 
-In this example, we are looking for a model that assesses the risk of death after diagnosed covid. We don't want to guess who will survive and who won't. We want to construct a score that allows us to sort patients by risk of death\footnote{For this reason, in the following sections we will use the AUC measure to evaluate models}.
+¿Por qué necesitamos un modelo así?
+¡Podría tener muchas aplicaciones!
+A quienes corren mayor riesgo de muerte se les podría dar más protección, como proporcionándoles oxímetros de pulso o vacunándolos preferentemente.
 
-Why do we need such a model? It could have many applications! Those at higher risk of death could be given more protection, such as providing them with pulse oximeters or preferentially vaccinating them. 
-
-## Load packages
+## Cargar Librerias
 
 ```{r, warning=FALSE, message=FALSE}
 library("tableone")
@@ -68,44 +84,57 @@ library("paradox")
 set.seed(1313)
 ```
 
-## Conception
+## Concepción
 
-Before we build any model, even before we touch any data we should first determine for what purpose we will build a predictive model.
+Antes de construir cualquier modelo, incluso antes de tocar cualquier dato, primero debemos determinar con qué propósito construiremos un modelo predictivo.
 
-It is very important to define the objective before we sit down to programming, because later it is easy to get lost in setting function parameters and dealing with all these details that we need to do. It is easy to lose sight of the long-term goal.
+Es muy importante definir el objetivo antes de sentarnos a programar, porque luego es fácil perderse en configurar parámetros de funciones y lidiar con todos esos detalles que necesitamos hacer.
+Es fácil perder de vista el objetivo a largo plazo.
 
-So, first: Define the objective.
+Entonces, primero: definir el objetivo.
 
-For the purpose of these exercises, I have selected data on the covid pandemic. Imagine that we want to determine the order of vaccination.
-In this example we want to create a predictive model that assesses individual risks because we would like to rank patients according to their risk. 
+A los efectos de estos ejercicios, he seleccionado datos sobre la pandemia de covid.
+Imaginemos que queremos determinar el orden de vacunación.
+En este ejemplo queremos crear un modelo predictivo que evalúe los riesgos individuales porque nos gustaría clasificar a los pacientes según su riesgo.
 
-To get a model that gives a best ranking we will use the AUC measure to evaluate model performance. What exactly the AUC is I'll talk about a little later, right now the key thing is that we're interested in ranking of patients based on their risk score.
+Para obtener un modelo que ofrezca la mejor clasificación, utilizaremos la medida AUC para evaluar el rendimiento del modelo.
+Hablaré de qué es exactamente el AUC un poco más adelante; en este momento la clave es que estamos interesados en clasificar a los pacientes según su puntuación de riesgo.
 
-## Read the data
+## Leer los datos
 
-To build a model we need good data. In Machine Learning, the word *good* means a large amount of representative data. Collecting representative data is not easy and often requires designing an appropriate experiment.
+Para construir un modelo necesitamos buenos datos.
+En Machine Learning, la palabra *bueno* significa una gran cantidad de datos representativos.
+Recopilar datos representativos no es fácil y, a menudo, requiere diseñar un experimento adecuado.
 
-The best possible scenario is that one can design and run an experiment to collect the necessary data. In less comfortable situations, we look for "natural experiments," i.e., data that have been collected for another purpose but that can be used to build a model. Here we will use the data= collected through epidemiological interviews. There will be a lot of data points and it should be fairly representative, although unfortunately it only involves symptomatic patients who are tested positive for SARS-COV-2.
+El mejor escenario posible es que se pueda diseñar y ejecutar un experimento para recopilar los datos necesarios.
+En situaciones menos cómodas, buscamos "experimentos naturales", es decir, datos que han sido recopilados para otro propósito pero que pueden usarse para construir un modelo.
+Aquí utilizaremos los datos recopilados a través de entrevistas epidemiológicas.
+Habrá muchos puntos de datos y deberían ser bastante representativos, aunque desafortunadamente solo involucra a pacientes sintomáticos que dan positivo en la prueba del SARS-COV-2.
 
+Para los fines de este ejercicio, he preparado dos conjuntos de características de los pacientes infectados con covid.
+Es importante tener en cuenta que estos no son datos reales de pacientes.
+Se trata de datos simulados, generados para tener relaciones consistentes con datos reales (obtenidos de los NIH), pero los datos en sí no son reales.
+Afortunadamente, son suficientes para los propósitos de nuestro ejercicio.
 
-For the purposes of this exercise, I have prepared two sets of characteristics of patients infected with covid. It is important to note that these are not real patient data.  This is simulated data, generated to have relationships consistent with real data (obtained from NIH), but the data itself is not real. Fortunately, they are sufficient for the purposes of our exercise.
+Los datos se dividen en dos conjuntos `covid_spring` y `covid_summer`.
+El primero se adquiere en la primavera de 2020 y se utilizará como datos de entrenamiento, mientras que el segundo conjunto de datos se adquiere en verano y se utilizará para la validación.
+En el aprendizaje automático, la validación del modelo se realiza en un conjunto de datos separado.
+Esto controla el riesgo de sobreajustar un modelo elástico a los datos.
+Si no tenemos un conjunto separado, se genera mediante técnicas de validación cruzada, fuera de muestra o fuera de tiempo.
 
-
-The data is divided into two sets `covid_spring` and `covid_summer`. The first is acquired in spring 2020 and will be used as training data while the second dataset is acquired in summer and will be used for validation. In machine learning, model validation is performed on a separate data set. This controls the risk of overfitting an elastic model to the data. If we do not have a separate set then it is generated using cross-validation, out of sample or out of time techniques.
-
-
-- `covid_spring.csv` corresponds to covid mortality data from spring 2020. We will use this data for model training.
-- `covid_summer.csv` corresponds to covid mortality data from summer 2020. We will use this data for model validation.
-
+-   `covid_spring.csv` Corresponde a los datos de mortalidad por covid de la primavera de 2020. Usaremos estos datos para el entrenamiento del modelo.
+-   `covid_summer.csv` Corresponde a los datos de mortalidad por covid del verano de 2020. Usaremos estos datos para la validación del modelo.
 
 ```{r, warning=FALSE, message=FALSE}
 covid_spring <- read.table("covid_spring.csv", sep =";", header = TRUE, stringsAsFactors = TRUE)
 covid_summer <- read.table("covid_summer.csv", sep =";", header = TRUE, stringsAsFactors = TRUE)
 ```
 
-## Explore the data
+## Explorar los datos
 
-Before we start any serious modeling, it is worth looking at the data first. To do this, we will do a simple EDA. In R there are many tools to do data exploration, I value packages that support so called table one.
+Antes de comenzar con cualquier modelado serio, vale la pena mirar primero los datos.
+Para ello haremos un EDA sencillo.
+En R hay muchas herramientas para realizar exploración de datos, valoro los paquetes que admiten la llamada tabla uno.
 
 ```{r, warning=FALSE, message=FALSE}
 library("tableone")
@@ -116,20 +145,21 @@ table1 <- CreateTableOne(vars = colnames(covid_spring)[1:11],
 print(table1)
 ```
 
-During modeling, exploration often takes the most time. In this case, we will limit ourselves to some simple graphs.
+Durante el modelado, la exploración suele llevar más tiempo.
+En este caso nos limitaremos a algunos gráficos sencillos.
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(covid_spring, aes(Age)) +
   geom_histogram() +
-  ggtitle("Histogram of age")
+  ggtitle("Histograma de edad")
 
 ggplot(covid_spring, aes(Age, fill = Death)) +
   geom_histogram() +
-  ggtitle("Histogram of age")
+  ggtitle("Histograma de edad")
 
 ggplot(covid_spring, aes(Age, fill = Death)) +
   geom_histogram(color = "white") +
-  ggtitle("Histogram of age") + 
+  ggtitle("Histograma de edad") + 
   DALEX::theme_ema() +
   scale_fill_manual("", values = c("grey", "red3"))
 
@@ -148,11 +178,11 @@ pheatmap((covid_spring[,3:11] == "Yes") + 0)
 
 ```
 
-## Transform the data
+## Tranformar los datos
 
-One of the most important rules to remember when building a predictive model is: Do not condition on future! 
+Una de las reglas más importantes a recordar al construir un modelo predictivo es: ¡No condiciones el futuro!
 
-Variables like `Hospitalization` or `Cough` are not good predictors, beacuse they are not known in advance.
+Variables como "Hospitalización" o "Tos" no son buenos predictores porque no se conocen de antemano.
 
 ```{r, warning=FALSE, message=FALSE}
 covid_spring <- covid_spring[,c("Gender", "Age", "Cardiovascular.Diseases", "Diabetes",
@@ -163,28 +193,58 @@ covid_summer <- covid_summer[,c("Gender", "Age", "Cardiovascular.Diseases", "Dia
                "Death")]
 ```
 
-## Your turn
+## Tu turno
 
-- Plot Age distribution for `covid_spring` and `covid_summer`.
-- Calculate `tableone` for `covid_spring` and `covid_summer`.
-- (extra) In the `DALEX` package you will find `titanic_imputed` dataset. Calculate `tableone` for this dataset.
+-   Grafíca la distribución de la edad para `covid_spring` y `covid_summer`.
+-   Calcula `tableone` para `covid_spring` y `covid_summer`.
+-   (extra) En la librería `DALEX` Encontraras la base de datos `titanic_imputed`. Calcule `tableone` para esta tabla de datos.
 
-# Part 2: Hello model! First predictive model + How to measure performance
+```{r}
 
-We will think of a predictive model as a function that computes a certain prediction for certain input data. Usually, such a function is built automatically based on the data. But technically the model can be any function defined in any way. The first model will be based on statistics collected by the CDC (CDC stands for Centers for Disease Control and Prevention. You will find a set of useful statistics related to Covid mortality on [this page]({https://tinyurl.com/CDCmortality)) that determine mortality in different age groups.
+ggplot(covid_summer, aes(Age)) +
+  geom_histogram() +
+  ggtitle("Histograma de edad")
 
 
-In many cases, you do not need data to create a model. Just google some information about the problem.
+table2 <- CreateTableOne(vars = colnames(covid_summer)[1:11],
+                         data = covid_summer,
+                         strata = "Death")
+print(table2)
+```
 
-It turns out that CDC has some decent statistics about age-related mortality. These statistics will suffice as a first approximation of our model.
+```{r}
+library(DALEX)
+data(titanic_imputed)
+library(tableone)
+table3 <- CreateTableOne(vars = colnames(titanic_imputed)[1:8],
+                         data = titanic_imputed,
+                         strata = "survived")
 
-https://www.cdc.gov/coronavirus/2019-ncov/covid-data/investigations-discovery/hospitalization-death-by-age.html
+print(table3)
+```
 
-*Lesson 1:* Often you don't need individual data to build a good model.
+# Parte 2: ¡Hola modelo! Primer modelo predictivo + Cómo medir el desempeño
 
-## Create a model
+Pensaremos en un modelo predictivo como una función que calcula una determinada predicción para determinados datos de entrada.
+Por lo general, dicha función se crea automáticamente en función de los datos.
+Pero técnicamente el modelo puede ser cualquier función definida de cualquier forma.
+El primer modelo se basará en las estadísticas recopiladas por los CDC (CDC significa Centros para el Control y la Prevención de Enfermedades). Encontrará un conjunto de estadísticas útiles relacionadas con la mortalidad por Covid en [this page](%7Bhttps://tinyurl.com/CDCmortality)) que determinan la mortalidad en diferentes grupos de edad.
 
-What is a predictive model? We will think of it as a function that takes a set of numbers as input and returns a single number as the result - the score.
+En muchos casos, no se necesitan datos para crear un modelo.
+Simplemente busque en Google información sobre el problema.
+
+Resulta que los CDC tienen algunas estadísticas decentes sobre la mortalidad relacionada con la edad.
+Estas estadísticas serán suficientes como una primera aproximación de nuestro modelo.
+
+<https://www.cdc.gov/coronavirus/2019-ncov/covid-data/investigations-discovery/hospitalization-death-by-age.html>
+
+*Lección 1:* A menudo no se necesitan datos individuales para construir un buen modelo.
+
+## Crear un modelo
+
+¿Qué es un modelo predictivo?
+Lo consideraremos como una función que toma un conjunto de números como entrada y devuelve un único número como resultado 
+- la puntuación.
 
 ```{r, warning=FALSE, message=FALSE}
 cdc_risk <- function(x, base_risk = 0.00003) {
@@ -212,7 +272,7 @@ predict(model_cdc, x)
 
 ```
 
-The same function can be written in a slightly more compact form as (now it works on many rows)
+La misma función se puede escribir en una forma un poco más compacta como (ahora funciona en muchas filas)
 
 ```{r, warning=FALSE, message=FALSE}
 cdc_risk <- function(x, base_risk = 0.00003) {
@@ -231,18 +291,19 @@ table(Death = covid_spring$Death,
       Prediction.above.005 = cdc_risk(covid_spring) > 0.05)
 ```
 
-## Wrap the model 
+## envolver el modelo
 
+En R tenemos muchas herramientas para crear modelos.
+El problema con ellos es que estas herramientas son creadas por diferentes personas y devuelven resultados en diferentes estructuras.
+Entonces, para trabajar de manera uniforme con los modelos, necesitamos empaquetar el modelo de tal manera que tenga una interfaz uniforme.
 
-In R, we have many tools for creating models. The problem with them is that these tools are created by different people and return results in different structures. So in order to work uniformly with the models we need to package the model in such a way that it has a uniform interface.
+Los diferentes modelos tienen diferentes API.
 
-Different models have different APIs. 
+¡Pero necesitas una API para gobernarlos a todos!
 
-But you need One API to Rule Them All!
+La biblioteca DALEX proporciona una arquitectura unificada para explorar y validar modelos utilizando diferentes métodos analíticos.
 
-The DALEX library provides a unified architecture to explore and validate models using different analytical methods. 
-
-[More info](http://ema.drwhy.ai/do-it-yourself.html#infoDALEX)
+[Mayor información](http://ema.drwhy.ai/do-it-yourself.html#infoDALEX)
 
 ```{r, warning=FALSE, message=FALSE}
 library("DALEX")
@@ -255,54 +316,54 @@ model_cdc <-  DALEX::explain(cdc_risk,
 predict(model_cdc, x)
 ```
 
-## Model performance
+## Rendimiento del modelo
 
-The evaluation of the model performance for the classification is based on different measures than for the regression.
+La evaluación del desempeño del modelo para la clasificación se basa en medidas diferentes a las de la regresión.
 
-For regression, commonly used measures are Mean squared error MSE
+Para la regresión, las medidas comúnmente utilizadas son Error cuadrático medio MSE
 
-$$MSE(f) = \frac{1}{n} \sum_{i}^{n} (f(x_i) - y_i)^2 $$ 
+$$MSE(f) = \frac{1}{n} \sum_{i}^{n} (f(x_i) - y_i)^2 $$
 
-and Rooted mean squared error RMSE
+y error cuadrático medio raíz RMSE
 
-$$RMSE(f) = \sqrt{MSE(f, X, y)} $$ 
+$$RMSE(f) = \sqrt{MSE(f, X, y)} $$
 
-For classification, commonly used measures are Accuracy
+Para la clasificación, las medidas comúnmente utilizadas son Precisión
 
 $$ACC(f) = (TP + TN)/n$$
 
-Precision
+Precisión
 
-$$Prec(f) = TP/(TP + FP)$$ 
+$$Prec(f) = TP/(TP + FP)$$
 
-and Recall
+y recordar
 
-$$Recall(f) = TP/(TP + FN)$$ 
+$$Recall(f) = TP/(TP + FN)$$
 
-and F1 score
+y F1 score
 
-$$F1(f) = 2\frac{Prec(f)  * Recall(f) }{Prec(f)  + Recall(f)}$$ 
+$$F1(f) = 2\frac{Prec(f)  * Recall(f) }{Prec(f)  + Recall(f)}$$
 
-In this problem we are interested in ranking of scores, so we will use the AUC measure (the area under the ROC curve).
+En este problema nos interesa la clasificación de puntuaciones, por lo que usaremos la medida AUC (el área bajo la curva ROC).
 
-There are many measures for evaluating predictive models and they are located in various R packages (`ROCR`, `measures`, `mlr3measures`, etc.). For simplicity, in this example, we use only the AUC measure from the `DALEX` package.
-
-
+Existen muchas medidas para evaluar modelos predictivos y están ubicadas en varios paquetes de R. (`ROCR`, `measures`, `mlr3measures`, etc.).
+Para simplificar, en este ejemplo utilizamos solo la medida AUC del paquete `DALEX`.
 
 Pregnancy: Sensitivity and Specificity
 
-http://getthediagnosis.org/diagnosis/Pregnancy.htm
+<http://getthediagnosis.org/diagnosis/Pregnancy.htm>
 
-https://en.wikipedia.org/wiki/Sensitivity_and_specificity
+<https://en.wikipedia.org/wiki/Sensitivity_and_specificity>
 
-For AUC the `cutoff` does not matter. But we set it to get nice precision and F1.
+Para las AUC el `cutoff` no importa.
+Pero lo configuramos para obtener una buena precisión y F1.
 
-[More info](http://ema.drwhy.ai/modelPerformance.html#modelPerformanceMethodBin)
+[Mayor información](http://ema.drwhy.ai/modelPerformance.html#modelPerformanceMethodBin)
 
-*Model performance*
+*Rendimiento del modelo*
 
-Model exploration starts with an assessment of how good is the model.  The `DALEX::model_performance` function calculates a set of the most common measures for the specified model.
-
+La exploración del modelo comienza con una evaluación de qué tan bueno es el modelo.
+La función `DALEX::model_performance` Es la función que calcula un conjunto de las medidas más comunes para el modelo especificado.
 
 ```{r, warning=FALSE, message=FALSE}
 library("DALEX")
@@ -324,23 +385,24 @@ mp_cdc
 
 ### ROC
 
+Nota: El modelo se evalúa con los datos proporcionados en el explicador.
+Usa `DALEX::update_data()` para especificar otro conjunto de datos.
 
-Note:  The model is evaluated on the data given in the explainer. Use `DALEX::update_data()` to specify another dataset.
+Nota: El explicador sabe si el modelo es para clasificación o regresión, por lo que selecciona automáticamente las medidas correctas.
+Se puede anular si es necesario.
 
-Note:  Explainer knows whether the model is for classification or regression, so it automatically selects the right measures. It can be overridden if needed.
+La función genérica `plot` de S3 dibuja un resumen gráfico del rendimiento del modelo.
+Con el argumento `geom`, se puede determinar el tipo de gráfico.
 
-The S3 generic `plot` function draws a graphical summary of the model performance. With the `geom` argument, one can determine the type of chart.
-
-
-[More info](http://ema.drwhy.ai/modelPerformance.html#fig:exampleROC)
+[Mayor información](http://ema.drwhy.ai/modelPerformance.html#fig:exampleROC)
 
 ```{r, warning=FALSE, message=FALSE, fig.width=3, fig.height=3}
 plot(mp_cdc, geom = "roc") + DALEX::theme_ema() 
 ```
 
-### LIFT
+### ELEVAR
 
-[More info](http://ema.drwhy.ai/modelPerformance.html#fig:examplePRC)
+[Mayor información](http://ema.drwhy.ai/modelPerformance.html#fig:examplePRC)
 
 ```{r, warning=FALSE, message=FALSE, fig.width=3, fig.height=3}
 plot(mp_cdc, geom = "lift")
@@ -350,22 +412,26 @@ plot(mp_cdc, geom = "lift")
 plot(mp_cdc, geom = "boxplot")
 ```
 
-## Your turn
+## Tú turno
 
-- Calcualte the AUC for CDC model on the `covid_spring` data. 
-- Plot ROC for both `covid_spring` and `covid_summer` data.
-- (extra) In the `DALEX` package you will find `titanic_imputed` dataset. Build a similar model to CDC but for the Titanic dataset. How good is your model?
+-   Calcule el AUC para el modelo CDC en los datos de `covid_spring`.
+-   Trazar la ROC para los datos `covid_spring` y `covid_summer`.
+-   (extra) En el paquete `DALEX` encontrará el conjunto de datos `titanic_imputed`. Construya un modelo similar al CDC pero para el conjunto de datos del Titanic. ¿Qué tan bueno es tu modelo?
 
-# Part 3: Basics of decision tree and random forest 
+# Parte 3: Conceptos básicos del árbol de decisión y el bosque aleatorio.
 
+Normalmente, no sabemos qué función es la mejor para nuestro problema.
+Es por eso que queremos utilizar datos para encontrar/entrenar dicha función con el uso de algún algoritmo automatizado.
 
-Usually, we don't know which function is the best for our problem. This is why we want to use data to find/train such function with the use of some automated algorithm.
+En Machine Learning, hay cientos de algoritmos disponibles.
+Por lo general, este entrenamiento se reduce a encontrar parámetros para alguna familia de modelos.
+Una de las familias de modelos más populares son los árboles de decisión.
+Su gran ventaja es la transparencia de su estructura.
 
-In the Machine Learning, there are hundreds of algorithms available. Usually, this training boils down to finding parameters for some family of models. One of the most popular families of models is decision trees. Their great advantage is the transparency of their structure.
+Comenzaremos a construir el modelo construyendo un árbol de decisión.
+Controlaremos paso a paso la complejidad del modelo.
 
-We will begin building the model by constructing a decision tree. We will stepwise control the complexity of the model.
-
-[More info](https://cran.r-project.org/web/packages/partykit/vignettes/ctree.pdf)
+[Mayor información](https://cran.r-project.org/web/packages/partykit/vignettes/ctree.pdf)
 
 ```{r, warning=FALSE, message=FALSE, fig.width=9, fig.height=5}
 library("partykit")
@@ -388,7 +454,7 @@ tree <- ctree(Death ~., covid_spring,
 plot(tree)
 ```
 
-To work with different models uniformly, we will also wrap this one into an explainer.
+Para trabajar con diferentes modelos de manera uniforme, también incluiremos este en una explicación.
 
 ```{r, warning=FALSE, message=FALSE}
 model_tree <-  DALEX::explain(tree,
@@ -400,8 +466,7 @@ model_tree <-  DALEX::explain(tree,
                    verbose = FALSE)
 ```
 
-
-### Test your model
+### Prueba tu modelo
 
 ```{r, warning=FALSE, message=FALSE}
 mp_tree <- model_performance(model_tree, cutoff = 0.1)
@@ -413,16 +478,15 @@ hist(predict(model_tree, covid_summer))
 plot(mp_tree, mp_cdc, geom = "roc")
 ```
 
-### Your turn
+### Tú turno
 
-- Check the AUC for CDC model on the `covid_spring` data. 
-- Plot ROC for both `covid_spring` and `covid_summer` data.
-- (*)Try to overfit.
+-   Verifique las AUC para el modelo CDC en los datos `covid_spring`.
+-   Trazar ROC para los datos `covid_spring` y `covid_summer`.
+-   (\*)Intenta sobreajustar.
 
+Ejemplo para titanic
 
-Example for titanic
-
-```
+```         
 head(titanic_imputed)
 tree <- ctree(survived ~., titanic_imputed)
 plot(tree)
@@ -443,12 +507,19 @@ mp
 plot(mp, geom = "roc")
 ```
 
-## Plant a forest
+## plantar un bosque
 
-Decision trees are models that have low bias but high variance. In 2001, Leo Breiman proposed a new family of models, called a random forest, which averages scores from multiple decision trees trained on bootstrap samples of the data. The whole algorithm is a bit more complex but also very fascinating. You can read about it at https://tinyurl.com/RF2001. Nowadays a very popular, in a sense complementary technique for improving models is boosting, in which you reduce the model load at the expense of variance. This algorithm reduces variance at the expense of bias. Quite often it leads to a better model.
+Los árboles de decisión son modelos que tienen un sesgo bajo pero una varianza alta.
+En 2001, Leo Breiman propuso una nueva familia de modelos, llamada bosque aleatorio, que promedia las puntuaciones de múltiples árboles de decisión entrenados con muestras de datos de arranque.
+Todo el algoritmo es un poco más complejo pero también muy fascinante.
+Puedes leer sobre esto en <https://tinyurl.com/RF2001>.
+Hoy en día, una técnica muy popular, en cierto sentido complementaria, para mejorar modelos es el impulso, en el que se reduce la carga del modelo a expensas de la variación.
+Este algoritmo reduce la varianza a expensas del sesgo.
+Muy a menudo conduce a un modelo mejor.
 
-We will train a random forest with the `mlr3` library. The first step is to define the prediction task.
-[More info](https://mlr3book.mlr-org.com/tasks.html)
+Entrenaremos un bosque aleatorio con la biblioteca `mlr3`.
+El primer paso es definir la tarea de predicción.
+[Mayor información](https://mlr3book.mlr-org.com/tasks.html)
 
 ```{r bagging_tree, warning=FALSE, message=FALSE}
 library("mlr3")
@@ -460,9 +531,10 @@ covid_task <- TaskClassif$new(id = "covid_spring",
 covid_task
 ```
 
-Now we need to define the family of models in which we want to look for a solution. The random forests is specified by the `classif.ranger"` parameter. To find the best model in this family we use the `train()`.
+Ahora falta definir la familia de modelos en la que queremos buscar una solución.
+Los bosques aleatorios se especifican mediante el parámetro `classif.ranger"`. Para encontrar el mejor modelo en esta familia usamos `train()`.
 
-[More info](https://mlr3book.mlr-org.com/learners.html)
+[Mayor información](https://mlr3book.mlr-org.com/learners.html)
 
 ```{r, warning=FALSE, message=FALSE}
 library("mlr3learners")
@@ -478,9 +550,11 @@ predict(covid_ranger, covid_summer[1:3,], predict_type = "prob")[,1]
 
 ```
 
-### Test your model
+### prueba tu modelo
 
-A trained model can be turned into an explainer. Simpler functions can be used to calculate the performance of this model. But using explainers has an advantage that will be seen in all its beauty in just two pages. 
+Un modelo entrenado se puede convertir en un explicador.
+Se pueden utilizar funciones más simples para calcular el rendimiento de este modelo.
+Pero utilizar explicadores tiene una ventaja que se verá en toda su belleza en sólo dos páginas.
 
 ```{r, warning=FALSE, message=FALSE}
 model_ranger <-  explain(covid_ranger,
@@ -499,31 +573,35 @@ plot(mp_ranger, geom = "roc")
 plot(mp_ranger, mp_tree, mp_cdc, geom = "roc")
 ```
 
-## Your turn
+## tú turno
 
-- Check the AUC for Ranger model on the `covid_spring` data. 
-- Plot ROC for both `covid_spring` and `covid_summer` data.
-- (extra) In the `DALEX` package you will find `titanic_imputed` dataset. Build a tree based model for the Titanic dataset. How good is your model?
+-   Verifique las AUC para el modelo Ranger en los datos "covid_spring".
+-   Trazar ROC para los datos `covid_spring` y `covid_summer`.
+-   (extra) En el paquete `DALEX` encontrará el conjunto de datos `titanic_imputed`. Cree un modelo basado en árbol para el conjunto de datos del Titanic. ¿Qué tan bueno es tu modelo?
 
-# Part 4: Hyperparameter optimization + Wrap-up 
+# Parte 4: Optimización de hiperparámetros + resumen
 
-*Hyperparameter Optimisation*
+*Optimización de hiperparámetros*
 
-Machine Learning algorithms typically have many hyperparameters that determine how the model is to be trained. For models with high variance, the selection of such hyperparameters has a strong impact on the quality of the final solution. The mlr3tuning package contains procedures to automate the process of finding good hyperparameters.
+Los algoritmos de aprendizaje automático suelen tener muchos hiperparámetros que determinan cómo se debe entrenar el modelo.
+Para modelos con alta varianza, la selección de dichos hiperparámetros tiene un fuerte impacto en la calidad de la solución final.
+El paquete mlr3tuning contiene procedimientos para automatizar el proceso de búsqueda de buenos hiperparámetros.
 
-See: https://mlr3book.mlr-org.com/tuning.html.
+ver: <https://mlr3book.mlr-org.com/tuning.html>.
 
-To use it, you must specify the space of hyperparameter to search. Not all hyperparameters are worth optimizing. In the example below, we focus on four for the random forest algorithm.
+Para usarlo, debe especificar el espacio del hiperparámetro para buscar.
+No vale la pena optimizar todos los hiperparámetros.
+En el siguiente ejemplo, nos centramos en cuatro para el algoritmo de bosque aleatorio.
 
-## Automated Hyperparameter Optimisation
+## Optimización automatizada de hiperparámetros
 
-For automatic hyperparameter search, it is necessary to specify a few more elements: (1) a stopping criterion, below it is the number of 10 evaluations, (2) a search strategy for the parameter space, below it is a random search, (3) a way to evaluate the performance of the proposed models, below it is the AUC determined by 5-fold cross-validation.
+Para la búsqueda automática de hiperparámetros, es necesario especificar algunos elementos más: (1) un criterio de parada, debajo está el número de 10 evaluaciones, (2) una estrategia de búsqueda para el espacio de parámetros, debajo está una búsqueda aleatoria, ( 3) una forma de evaluar el desempeño de los modelos propuestos, a continuación se encuentra el AUC determinado mediante validación cruzada quíntuple.
 
-### Define the search space
+### Definir el espacio de búsqueda
 
-In order to be able to automatically search for optimal parameters, it is first necessary to specify what is the space of possible hyperparameters.
+Para poder buscar automáticamente los parámetros óptimos, primero es necesario especificar cuál es el espacio de posibles hiperparámetros.
 
-[More info](https://mlr3book.mlr-org.com/searchspace.html)
+[Mayor información](https://mlr3book.mlr-org.com/searchspace.html)
 
 ```{r, warning=FALSE, message=FALSE}
 library("mlr3tuning")
@@ -541,13 +619,13 @@ search_space = ps(
 search_space
 ```
 
-### Set-up the tuner
+### Configurar el sintonizador
 
-Popular searching strategies are `random_search` and `grid_search`.
-Termination is set fo a specific number of evaluations.
-Internal testing is based on 5-fold CV.
+Las estrategias de búsqueda populares son `random_search` y `grid_search`.
+La terminación se establece en un número específico de evaluaciones.
+Las pruebas internas se basan en CV quíntuple.
 
-[More info](https://mlr3book.mlr-org.com/tuning.html#autotuner)
+[Mayor información](https://mlr3book.mlr-org.com/tuning.html#autotuner)
 
 ```{r, warning=FALSE, message=FALSE}
 tuned_ranger = AutoTuner$new(
@@ -561,17 +639,18 @@ tuned_ranger = AutoTuner$new(
 tuned_ranger
 ```
 
-### Tune
+### Afinar
 
 ```{r, warning=FALSE, message=FALSE, results='hide'}
 tuned_ranger$train(covid_task)
 ```
+
 ```{r, warning=FALSE, message=FALSE}
 tuned_ranger$tuning_result
 tuned_ranger$predict_newdata(newdata = covid_spring)$prob[1:4,]
 ```
 
-### Test your model
+### Prueba tu modelo
 
 ```{r, message=FALSE, warning=FALSE}
 model_tuned <-  explain(tuned_ranger,
@@ -590,7 +669,7 @@ plot(mp_tuned, geom = "roc")
 plot(mp_ranger, mp_tree, mp_cdc, mp_tuned, geom = "roc")
 ```
 
-### Sum up
+### Resumir
 
 ```{r, message=FALSE, warning=FALSE}
 do.call(rbind, 
@@ -599,43 +678,49 @@ do.call(rbind,
             ranger = mp_ranger$measures,
             tuned  = mp_tuned$measures))
 ```
-### Your turn
 
-- Check the AUC for AutoTune model on the `covid_spring` data. 
-- Plot ROC for both `covid_spring` and `covid_summer` data.
-- (extra) In the `DALEX` package you will find `titanic_imputed` dataset. Optimize a tree based model for the Titanic dataset. How good is your model?
+### Tu turno
 
+-   Verifique el AUC para el modelo AutoTune en los datos `covid_spring`.
+-   Trazar ROC para los datos `covid_spring` y `covid_summer`.
+- (extra) En el paquete `DALEX` encontrará el conjunto de datos `titanic_imputed`. Optimice un modelo basado en árbol para el conjunto de datos del Titanic. ¿Qué tan bueno es tu modelo?
 
-# *Chapter 2: Model exploration*
+# *Capítulo 2: Exploración del modelo*
 
-We will devote the second day entirely to talking about methods for model exploration. 
+Dedicaremos el segundo día por completo a hablar sobre métodos de exploración de modelos.
 
-[More info](http://ema.drwhy.ai/modelLevelExploration.html)
+[Mayor información](http://ema.drwhy.ai/modelLevelExploration.html)
 
 ![DALEX piramide](DALEXpiramide.png)
 
-# Part 1: Model level analysis - variable importance
+# Parte 1: Análisis a nivel de modelo: importancia de la variable
 
+Algunos modelos tienen métodos incorporados para evaluar la importancia de la variable.
+Para modelos lineales se pueden utilizar coeficientes de modelo estandarizados o valores p.
+Para bosques aleatorios, se puede utilizar el error de clasificación fuera de bolsa.
+Para los modelos de impulso de árboles se pueden utilizar estadísticas de ganancia.
+Sin embargo, el problema con tales medidas es que no todos los modelos tienen estadísticas de importancia variable incorporadas (por ejemplo, redes neuronales) y que las puntuaciones entre diferentes modelos no se pueden comparar directamente (cómo comparar las ganancias con los valores p).
 
-Some models have built-in methods for assessment of Variable importance. For linear models one can use standardized model coefficients or p-values. For random forest one can use out-of-bag classification error. For tree boosting models one can use gain statistics. Yet, problem with such measures is that not all models have build-in variable importance statistics (e.g. neural networks) and that scores between differetnt models cannot be directly compared (how to compare gains with p-values).
+Es por eso que necesitamos un enfoque independiente del modelo que sea comparable entre diferentes modelos.
+El procedimiento que se describe a continuación es universal, independiente del modelo y no depende de la estructura del modelo.
 
-This is why we need a model agnostic approach that will be comparable between different models. The procedure described below is universal, model agnostic and does not depend on the model structure.
+El procedimiento se basa en perturbaciones variables en los datos de validación.
+Si una variable es importante en un modelo, luego de su permutación las predicciones del modelo deberían ser menos precisas.
 
-The procedure is based on variable perturbations in the validation data. If a variable is important in a model, then after its permutation the model predictions should be less accurate. 
-
-The permutation-based variable-importance of a variable $i$ is the difference between the model performance for the original data and the model performance measured on data with the permutated variable $i$
+La importancia de la variable basada en permutación de una variable $i$ es la diferencia entre el rendimiento del modelo para los datos originales y el rendimiento del modelo medido en datos con la variable permutada $i$
 
 $$
 VI(i) = L(f, X^{perm(i)}, y) - L(f, X, y)
 $$
 
-where
-$L(f, X, y)$ is the value of loss function for original data $X$, true labels $y$ and model $f$, while $X^{perm(i)}$ is dataset $x$ with $i$-th variable permutated.
+donde $L(f, X, y)$ es el valor de la función de pérdida para los datos originales $X$, las etiquetas verdaderas $y$ y el modelo $f$, mientras que $X^{perm(i)}$ es el conjunto de datos $x $ con $i$-ésima variable permutada.
 
+¿Qué medida de desempeño debería elegir?
+Tu decides.
+En la biblioteca `DALEX`, de forma predeterminada, RMSE se usa para regresión y 1-AUC para problemas de clasificación.
+Pero puede cambiar la función de pérdida especificando el \verb:loss_function: argument.
 
-Which performance measure should you choose? It's up to you. In the `DALEX` library, by default, RMSE is used for regression and 1-AUC for classification problems. But you can change the loss function by specifying the \verb:loss_function: argument.
-
-[More info](http://ema.drwhy.ai/featureImportance.html)
+[Mayor información](http://ema.drwhy.ai/featureImportance.html)
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
 mpart_ranger <- model_parts(model_ranger)
@@ -645,6 +730,7 @@ plot(mpart_ranger, show_boxplots = FALSE, bar_width=4) +
   theme( axis.text = element_text(color = "black", size = 12, hjust = 0)) +
   ggtitle("Variable importance","")
 ```
+
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
 mpart_ranger <- model_parts(model_ranger, type = "difference")
 mpart_ranger
@@ -672,18 +758,18 @@ plot(mpart_cdc, mpart_tree, mpart_ranger, mpart_tuned, show_boxplots = FALSE, ba
   ggtitle("Variable importance","")
 ```
 
-## Your turn
+## Tu turno
 
-- Compare results for `covid_summer` with results on the `covid_spring` data.
-- (extra) In the `DALEX` package you will find `titanic_imputed` dataset. Train a ranger model and calculate variable importance.
+-   Compare los resultados de `covid_summer` con los resultados de los datos de `covid_spring`.
+-   (extra) En el paquete `DALEX` encontrará el conjunto de datos `titanic_imputed`. Entrene un modelo de guardabosques y calcule la importancia de la variable.
 
-# Part 2: Model level analysis - variable profile
+# Parte 2: Análisis a nivel de modelo: perfil variable
 
-Partial dependence profiles are averages from CP profiles for all (or a large enough number) observations.
+Los perfiles de dependencia parcial son promedios de los perfiles de CP para todas (o un número suficientemente grande) de observaciones.
 
-The `model_profiles()` function calculates PD profiles for a~specified model and variables (all by default). 
+La función `model_profiles()` calcula los perfiles de PD para a\~specified modelo y variables (todo por defecto).
 
-[More info](http://ema.drwhy.ai/partialDependenceProfiles.html)
+[Mayor información](http://ema.drwhy.ai/partialDependenceProfiles.html)
 
 ```{r, message=FALSE, warning=FALSE}
 mprof_cdc <- model_profile(model_cdc, "Age")
@@ -696,10 +782,10 @@ plot(mgroup_ranger)+
   ggtitle("PD profile","")
 ```
 
-*Grouped partial dependence profiles*
+*Perfiles de dependencia parcial agrupados*
 
-
-By default, the average is calculated for all observations. But with the argument `groups=` one can specify a factor variable in which CP profiles will be averaged. 
+De forma predeterminada, el promedio se calcula para todas las observaciones.
+Pero con el argumento `groups=` se puede especificar una variable de factor en la que se promediarán los perfiles de CP.
 
 ```{r, message=FALSE, warning=FALSE}
 mgroup_ranger <- model_profile(model_ranger, variable_splits = list(Age = 0:100), groups = "Diabetes")
@@ -739,7 +825,7 @@ mprof_ranger <- model_profile(model_ranger, variable_splits = list(Age=0:100))
 mprof_tuned <- model_profile(model_tuned, variable_splits = list(Age=0:100))
 ```
 
-Profiles can be then drawn with the `plot()` function. 
+Luego se pueden dibujar perfiles con la función `plot()`.
 
 ```{r, message=FALSE, warning=FALSE}
 plot(mprof_tuned, mprof_cdc, mprof_tree, mprof_ranger) +
@@ -748,23 +834,27 @@ plot(mprof_tuned, mprof_cdc, mprof_tree, mprof_ranger) +
   theme( axis.text = element_text(color = "black", size = 12, hjust = 0), legend.position = "top")
 ```
 
-If the model is additive, all CP profiles are parallel. But if the model has interactions, CP profiles may have different shapes for different observations. Defining the k argument allows to find and calculate the average in k segments of CP profiles.
+Si el modelo es aditivo, todos los perfiles CP son paralelos.
+Pero si el modelo tiene interacciones, los perfiles de CP pueden tener diferentes formas para diferentes observaciones.
+Definir el argumento k permite encontrar y calcular el promedio en k segmentos de perfiles CP.
 
+Los perfiles PDP no tienen en cuenta la estructura de correlación entre las variables.
+Para variables correlacionadas, el supuesto Ceteris paribus puede no tener sentido.
+La función `model_profile` también puede calcular otros tipos de agregados, como perfiles marginales y perfiles locales acumulados.
+Para hacer esto, especifique el argumento `type=` para `"condicional"` o `"acumulado"`.
 
-PDP profiles do not take into account the correlation structure between the variables. For correlated variables, the Ceteris paribus assumption may not make sense. The `model_profile` function can also calculate other types of aggregates, such as marginal profiles and accumulated local profiles. To do this, specify the argument `type=` for `"conditional"` or `"accumulated"`.
+## Tu turno
 
-## Your turn
+-   Compare los resultados de `covid_summer` con los resultados de los datos de `covid_spring`.
+-   (extra) En el paquete `DALEX` encontrará el conjunto de datos `titanic_imputed`. Entrene un modelo de guardabosques y trace perfiles variables.
 
-- Compare results for `covid_summer` with results on the `covid_spring` data.
-- (extra) In the `DALEX` package you will find `titanic_imputed` dataset. Train a ranger model and plot variable profiles.
+# Parte 3: Análisis a nivel de instancia: atribuciones variables
 
-# Part 3: Instance level analysis - variable attributions
+Una vez que calculamos la predicción del modelo, a menudo surge la pregunta de qué variables tuvieron el mayor impacto en ella.
 
-Once we calculate the model prediction, the question often arises which variables had the greatest impact on it.
+Para los modelos lineales es fácil evaluar el impacto de variables individuales porque hay un coeficiente para cada variable.
 
-For linear models it is easy to assess the impact of individual variables because there is one coefficient for each variable.
-
-[More info](http://ema.drwhy.ai/InstanceLevelExploration.html)
+[Mayor información](http://ema.drwhy.ai/InstanceLevelExploration.html)
 
 ```{r}
 Steve <- data.frame(Gender = factor("Male", c("Female", "Male")),
@@ -778,10 +868,11 @@ predict(model_ranger, Steve)
 Steve
 ```
 
-It turns out that such attributions can be calculated for any predictive model. The most popular model agnostic method is Shapley values.
-They may be calculated with a `predict_parts()` function.
+Resulta que dichas atribuciones se pueden calcular para cualquier modelo predictivo.
+El método independiente del modelo más popular son los valores de Shapley.
+Se pueden calcular con una función `predict_parts()`.
 
-[More info](http://ema.drwhy.ai/shapley.html)
+[Mayor información](http://ema.drwhy.ai/shapley.html)
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=2.5}
 ppart_cdc <- predict_parts(model_cdc, Steve, type = "shap")
@@ -818,53 +909,50 @@ ppart_tuned <- predict_parts(model_tuned, Steve, type = "shap")
 plot(ppart_tuned)
 ```
 
-The `show_boxplots` argument allows you to highlight the stability bars of the estimated attributions.
+El argumento `show_boxplots` le permite resaltar las barras de estabilidad de las atribuciones estimadas.
 
-Other possible values of the `type` argument are `oscillations`, `shap`,  `break_down`, `break_down_interactions`.
+Otros valores posibles del argumento `type` son `oscillations`, `shap`, `break_down`, `break_down_interactions`.
 
-With `order`  one can force a certain sequence of variables.
+Con `order` se puede forzar una determinada secuencia de variables.
 
-By default, functions such as `model_parts`, `predict_parts`, `model_profiles` do not calculate statistics on the entire data set, but on `n_samples` of random cases, and the entire procedure is repeated `B` times to estimate the error bars.
-
+De forma predeterminada, funciones como `model_parts`, `predict_parts`, `model_profiles` no calculan estadísticas sobre todo el conjunto de datos, sino sobre `n_samples` de casos aleatorios, y todo el procedimiento se repite `B` veces para estimar el error.
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=2.5}
 ppart_cdc <- predict_parts(model_cdc, Steve)
 plot(ppart_cdc)
 ```
 
-
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=2.5}
 ppart_tuned <- predict_parts(model_tuned, Steve)
 plot(ppart_tuned)
 ```
 
-## Your turn
+## Tu turno
 
-- Compare results for `covid_summer` with results on the `covid_spring` data.
-- (extra) In the `DALEX` package you will find `titanic_imputed` dataset. Train a ranger model and calculate local variable attribution.
+-   Compare los resultados de `covid_summer` con los resultados de los datos de `covid_spring`.
+- (extra) En el paquete `DALEX` encontrará el conjunto de datos `titanic_imputed`. Entrene un modelo de guardabosques y calcule la atribución de variables locales.
 
-# Part 4: Instance level analysis - variable profile + Wrap-up
+# Parte 4: Análisis a nivel de instancia: perfil variable + Resumen
 
-*Profile for a single prediction*
+*Perfil para una sola predicción*
 
-Ceteris Paribus is a Latin phrase for "other things being equal.
+Ceteris Paribus es una frase latina que significa "en igualdad de condiciones".
 
-Ceteris-paribus profiles  show how the model response would change for a~selected observation if one of the coordinates of that observation were changed while leaving the other coordinates unchanged.
+Los perfiles ceteris-paribus muestran cómo cambiaría a\~selected observada si una de las coordenadas de esa observación se cambió mientras se dejaban las otras coordenadas sin cambios.
 
-The `predict_profiles()` function calculated CP profiles for a selected observation, model and vector of variables (all continuous variables by default). 
+La función `predict_profiles()` calculó perfiles de CP para una observación, modelo y vector de variables seleccionados (todas las variables continuas de forma predeterminada).
 
-
-[More info](http://ema.drwhy.ai/ceterisParibus.html)
+[Mayor información](http://ema.drwhy.ai/ceterisParibus.html)
 
 ```{r, message=FALSE, warning=FALSE}
 mprof_cdc <- predict_profile(model_cdc, Steve, "Age")
 plot(mprof_cdc)
 ```
 
-CP profiles can be visualized with the generic  \verb'plot()' function.
+Los perfiles CP se pueden visualizar con la función genérica \verb'plot()'
 
-For technical reasons, quantitative and qualitative variables cannot be shown in a single chart. So if you want to show the importance of quality variables you need to plot them separately.
-
+Por motivos técnicos, las variables cuantitativas y cualitativas no se pueden mostrar en un único gráfico.
+Entonces, si desea mostrar la importancia de las variables de calidad, debe trazarlas por separado.
 
 ```{r, message=FALSE, warning=FALSE}
 mprof_cdc <- predict_profile(model_cdc, variable_splits = list(Age=0:100), Steve)
@@ -895,20 +983,20 @@ plot(mprof_tuned, mprof_cdc, mprof_tree, mprof_ranger) + ggtitle("Ceteris paribu
 
 ```
 
-Local importance of variables can be measured as oscillations of CP plots. The greater the variability of the CP profile, the more important is the variable. Set `type = "oscillations"` in the `predict_parts` function.
+La importancia local de las variables se puede medir como oscilaciones de los gráficos de CP.
+Cuanto mayor es la variabilidad del perfil de PC, más importante es la variable.
+Establezca `type = "oscillations"` en la función `predict_parts`.
 
+## Tu turno
 
-
-## Your turn
-
-- Compare results for `covid_summer` with results on the `covid_spring` data.
-- (extra) In the `DALEX` package you will find `titanic_imputed` dataset. Train a ranger model and calculate local profiles.
+-   Compare los resultados de `covid_summer` con los resultados de los datos de `covid_spring`.
+- (extra) En el paquete `DALEX` encontrará el conjunto de datos `titanic_imputed`. Entrene un modelo de guardabosques y calcule perfiles locales.
 
 # Extras
 
-Play with your model!
+¡Juega con tú modeol!
 
-[More info](https://github.com/ModelOriented/modelStudio/blob/master/README.md)
+[Mayor información](https://github.com/ModelOriented/modelStudio/blob/master/README.md)
 
 ```{r, eval=FALSE}
 library("modelStudio")
@@ -931,9 +1019,8 @@ run_server(covid_ar)
 
 ```
 
-# Session info
+# Información de la sesión
 
 ```{r, warning=FALSE, message=FALSE}
 devtools::session_info()
 ```
-
