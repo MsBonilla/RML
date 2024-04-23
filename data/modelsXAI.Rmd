@@ -349,7 +349,7 @@ En este problema nos interesa la clasificación de puntuaciones, por lo que usar
 Existen muchas medidas para evaluar modelos predictivos y están ubicadas en varios paquetes de R. (`ROCR`, `measures`, `mlr3measures`, etc.).
 Para simplificar, en este ejemplo utilizamos solo la medida AUC del paquete `DALEX`.
 
-Pregnancy: Sensitivity and Specificity
+Embarazo: sensibilidad y especificidad
 
 <http://getthediagnosis.org/diagnosis/Pregnancy.htm>
 
